@@ -2,6 +2,7 @@ import javax.swing.*;
 import javax.swing.border.Border;
 import javax.swing.text.*;
 import javax.swing.Timer;
+import javax.swing.BoxLayout;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.HashMap;
@@ -16,6 +17,7 @@ public class MotelReservationProgram extends JFrame
 {
 	private JLabel currentDateLabel;
 	private JLabel currentTimeLabel;
+	private JLabel selectDateLabel;
     
     LocalDate selectDate;
     
@@ -51,6 +53,13 @@ public class MotelReservationProgram extends JFrame
         // 현재 날짜 레이블 생성
         currentDateLabel = new JLabel();
         currentTimeLabel = new JLabel();
+        selectDateLabel = new JLabel();
+        
+        // 폰트 설정
+        Font bigFont = new Font(Font.DIALOG, Font.PLAIN, 20);
+        currentDateLabel.setFont(bigFont);
+        currentTimeLabel.setFont(bigFont);
+        selectDateLabel.setFont(bigFont);
         
         // 선택한 날짜 초기화
         selectDate = LocalDate.now();
@@ -97,8 +106,46 @@ public class MotelReservationProgram extends JFrame
         
         // info 패널 설정
         rightPanel.add(infoPanel, BorderLayout.CENTER);
+        infoPanel.add(Box.createVerticalStrut(100)); // 여백 설정
         infoPanel.add(currentDateLabel);
         infoPanel.add(currentTimeLabel);
+        infoPanel.add(selectDateLabel);
+        JButton setSelectDateButton = new JButton("기준날짜 변경");
+        
+        setSelectDateButton.addActionListener(new ActionListener() 
+        {
+            public void actionPerformed(ActionEvent e) 
+            {
+                // 버튼 클릭 로그
+                AppendLog("기준날짜 설정버튼 클릭", Color.BLACK);
+
+                JPanel panel = new JPanel(new GridLayout(1, 1)); // 입력 폼을 위한 그리드 레이아웃
+
+                JTextField selectDateField = new JTextField();
+
+                panel.add(new JLabel("기준 날짜:"));
+                panel.add(selectDateField);
+                selectDateField.setText(selectDate.format(DateTimeFormatter.ofPattern("YYYY.MM.dd"))); // 현재 날짜 미리 입력
+
+                int result = JOptionPane.showConfirmDialog(
+                        MotelReservationProgram.this,
+                        panel,
+                        "적용",
+                        JOptionPane.OK_CANCEL_OPTION,
+                        JOptionPane.PLAIN_MESSAGE );
+
+                if (result == JOptionPane.OK_OPTION) 
+                {
+                    String newSelectDate = selectDateField.getText();
+                    selectDate = ParseDate(newSelectDate);
+                    
+                    // 로그 출력
+                    AppendLog("기준날짜 변경 " + selectDate, Color.BLACK);
+                 }
+            }
+        });
+        
+        infoPanel.add(setSelectDateButton); // info패널에 버튼 추가
         
         // log 패널 설정
         logTextPane = new JTextPane();
@@ -166,10 +213,10 @@ public class MotelReservationProgram extends JFrame
                     panel.add(nameField);
                     panel.add(new JLabel("체크인 날짜:"));
                     panel.add(checkInField);
-                    checkInField.setText(LocalDate.now().format(DateTimeFormatter.ofPattern("YYYY.MM.dd"))); // 현재 날짜 미리 입력
+                    checkInField.setText(selectDate.format(DateTimeFormatter.ofPattern("YYYY.MM.dd"))); // 기준 날짜 미리 입력
                     panel.add(new JLabel("체크아웃 날짜:"));
                     panel.add(checkOutField);
-                    checkOutField.setText(LocalDate.now().plusDays(1).format(DateTimeFormatter.ofPattern("yyyy.MM.dd"))); // 현재 날짜 + 1일 미리 입력
+                    checkOutField.setText(selectDate.plusDays(1).format(DateTimeFormatter.ofPattern("yyyy.MM.dd"))); // 기준 날짜 + 1일 미리 입력
                     panel.add(new JLabel("차량 번호:"));
                     panel.add(carNumberField);
                     panel.add(new JLabel("조식 인원:"));
@@ -306,8 +353,6 @@ public class MotelReservationProgram extends JFrame
 
         return outerPanel;
     }
-
-
     
     public void AppendLog(String message, Color color) 
     {
@@ -429,6 +474,7 @@ public class MotelReservationProgram extends JFrame
             {
                 currentDateLabel.setText("현재 날짜: " + LocalDate.now());
                 currentTimeLabel.setText("현재 시간: " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+                selectDateLabel.setText("기준 날짜: " + selectDate);
                 ShowGuestInfo(floor7Start, floor7End);
                 ShowGuestInfo(floor8Start, floor8End);
                 ShowGuestInfo(floor9Start, floor9End);

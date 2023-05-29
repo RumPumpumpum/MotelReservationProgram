@@ -20,6 +20,7 @@ public class MotelReservationProgram extends JFrame
 	private JLabel selectDateLabel;
     
     LocalDate selectDate;
+    public LocalTime checkOutTime;
     
     private Map<String, JPanel> roomPanelMap = new HashMap<>();
     private Map<String, JLabel> roomLabelMap = new HashMap<>();
@@ -69,8 +70,7 @@ public class MotelReservationProgram extends JFrame
         LocalTime currentTime = LocalTime.now();
         
         // 체크인 체크아웃 시간 설정
-        LocalTime checkInTime = ParseTime("13:00:00"); // 입실 시간
-        LocalTime checkOutTime = ParseTime("12:00:00"); // 퇴실 시간
+        checkOutTime = ParseTime("12:00:00"); // 퇴실 시간
         
         // 프레임을 전체화면으로 고정
         setExtendedState(JFrame.MAXIMIZED_BOTH);
@@ -130,7 +130,7 @@ public class MotelReservationProgram extends JFrame
                 int result = JOptionPane.showConfirmDialog(
                         MotelReservationProgram.this,
                         panel,
-                        "적용",
+                        "기준날짜 변경",
                         JOptionPane.OK_CANCEL_OPTION,
                         JOptionPane.PLAIN_MESSAGE );
 
@@ -288,7 +288,7 @@ public class MotelReservationProgram extends JFrame
                     // 버튼 클릭 로그
                     AppendLog("예약 확인 버튼 클릭 - 객실 번호: " + roomNumber, Color.BLACK);
 
-                    ReservationInfo reservationInfo = reservationDB.getReservationInfoByDateAndRoom(roomNumber, selectDate);
+                    ReservationInfo reservationInfo = reservationDB.getReservationInfoByDateAndRoom(roomNumber, selectDate, checkOutTime);
 
                     if (reservationInfo != null) 
                     {
@@ -446,12 +446,21 @@ public class MotelReservationProgram extends JFrame
         for (int i = floorStart; i <= floorEnd; i++) 
         {
         	String roomNumber = Integer.toString(i);
-        	guestInfo = reservationDB.getReservationInfoByDateAndRoom(roomNumber, selectDate);      
+        	guestInfo = reservationDB.getReservationInfoByDateAndRoom(roomNumber, selectDate, checkOutTime);      
 
             // roomGuest에 이름 넣기
             if (guestInfo != null) 
             {
-            	roomGuestMap.get(roomNumber).setText(guestInfo.getName());
+            	// HTML 태그를 사용하여 줄 바꿈을 적용
+            	roomGuestMap.get(roomNumber).setText("<html>" + 
+            	guestInfo.getName() + 
+            	"<br>" + 
+            	"입실: " +
+            	guestInfo.getCheckIn() + 
+            	"<br>" + 
+            	"퇴실: " +
+            	guestInfo.getCheckOut() + 
+            	"</html>");
 
             } 
             else 

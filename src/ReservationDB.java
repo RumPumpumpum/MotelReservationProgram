@@ -74,23 +74,24 @@ public class ReservationDB
 	
 	}
 	
-	public ReservationInfo getReservationInfoByDateAndRoom(String roomNumber, LocalDate date) 
-	{
-		ReservationInfo reservationInfo = null;
-	    try {
+	public ReservationInfo getReservationInfoByDateAndRoom(String roomNumber, LocalDate date, LocalTime checkOutTime) {
+	    ReservationInfo reservationInfo = null;
+	    LocalDate minCheckInDate = date;
+	    LocalDate maxCheckOutDate = date;
+	    try 
+	    {
 	        // SQL 쿼리 작성
 	        String sql = "SELECT * FROM reservations WHERE roomNumber = ? AND ? BETWEEN checkInDate AND checkOutDate";
 	        PreparedStatement statement = connection.prepareStatement(sql);
-	        
+
 	        // 파라미터 설정
 	        statement.setString(1, roomNumber);
 	        statement.setDate(2, java.sql.Date.valueOf(date));
-	        
+
 	        // SQL 실행 및 결과 조회
 	        ResultSet resultSet = statement.executeQuery();
-	        
-	        // 결과 처리
-	        if (resultSet.next()) 
+
+	        while (resultSet.next()) 
 	        {
 	            // 예약 정보 가져오기
 	            String name = resultSet.getString("name");
@@ -101,27 +102,53 @@ public class ReservationDB
 	            String carNumber = resultSet.getString("carNumber");
 	            int breakfastCount = resultSet.getInt("breakfastCount");
 	            String memo = resultSet.getString("memo");
+	        
+	            // 결과 처리
+	            LocalTime currentTime = LocalTime.now();
 	            
-	            // ReservationInfo 객체 생성
-	            reservationInfo = new ReservationInfo(
-	            		roomNumber, 
-	            		name, 
-	            		checkInDate,
-	            		checkOutDate, 
-	                    paymentMethod, 
+	            /*
+	             * 두개의 예약이 있을 때, 첫번째 예약의 체크아웃 날짜와 두번째 예약의 체크인 날짜가 겹칠 수 있다.
+	             * 그럴 때 현재 시간이 checkOutTime 이전이면 오늘 체크아웃 하는 예약을 표시하고(체크인 날짜가 가장 앞인 예약)
+	             * checkOutTime 이후면 오늘 체크인 하는 예약을 표시한다(체크아웃 날짜가 가장 뒤인 예약)
+	             */
+	            if (currentTime.isBefore(checkOutTime) && checkInDate.isBefore(minCheckInDate)) 
+	            {
+	                reservationInfo = new ReservationInfo(
+	                    roomNumber,
+	                    name,
+	                    checkInDate,
+	                    checkOutDate,
+	                    paymentMethod,
 	                    paymentAmount,
-	            		carNumber,
+	                    carNumber,
 	                    breakfastCount,
 	                    memo);
+	            }    
+	            else if(currentTime.isAfter(checkOutTime) && checkOutDate.isAfter(maxCheckOutDate))
+	            {
+	                reservationInfo = new ReservationInfo(
+	                    roomNumber,
+	                    name,
+	                    checkInDate,
+	                    checkOutDate,
+	                    paymentMethod,
+	                    paymentAmount,
+	                    carNumber,
+	                    breakfastCount,
+	                    memo);	            
 	            }
-	        } 
+	        }
+	    }
 	    catch (SQLException e) 
 	    {
 	        e.printStackTrace();
 	    }
-	    
+
 	    return reservationInfo;
 	}
+
+
+
 	
 	public void deleteReservationByDateAndRoom(String roomNumber, LocalDate date) {
 	    try {

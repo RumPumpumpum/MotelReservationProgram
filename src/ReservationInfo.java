@@ -33,7 +33,7 @@ public class ReservationInfo
         this.memo = memo;
     }
 
-    public String getroomNumber() 
+    public String getRoomNumber() 
     {
         return roomNumber;
     }

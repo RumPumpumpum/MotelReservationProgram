@@ -14,17 +14,24 @@ import java.text.SimpleDateFormat;
 
 public class MotelReservationProgram extends JFrame
 {
-    
-    private Map<String, ReservationInfo> roomReservationMap;
-    
     private JLabel currentDateLabel;
     private JLabel currentTimeLabel;
     
-    private JTextPane logTextPane;
+    public JTextPane logTextPane;
+    public JScrollPane scrollPane;
     
     private Timer timer;
     
     private ReservationDB reservationDB;
+    
+    int floor7Start = 701;
+    int floor7End = 711;
+    int floor8Start = 801;
+    int floor8End = 813;
+    int floor9Start = 901;
+    int floor9End = 913;
+    
+    LocalDate selectDate = LocalDate.now();
     
     public MotelReservationProgram() 
     {
@@ -54,9 +61,9 @@ public class MotelReservationProgram extends JFrame
         leftPanel.setLayout(new GridLayout(3, 1));
 
         // 각 층별로 패널 생성
-        JPanel floor1Panel = createFloorPanel("7", 701, 711);
-        JPanel floor2Panel = createFloorPanel("8", 801, 813);
-        JPanel floor3Panel = createFloorPanel("9", 901, 913);
+        JPanel floor1Panel = createFloorPanel("7", floor7Start, floor7End);
+        JPanel floor2Panel = createFloorPanel("8", floor8Start, floor8End);
+        JPanel floor3Panel = createFloorPanel("9", floor9Start, floor9End);
         
 
         // 층별 패널을 FlowLayout으로 설정하여 다음 줄로 넘어가도록 함
@@ -79,23 +86,21 @@ public class MotelReservationProgram extends JFrame
         rightPanel.add(infoPanel, BorderLayout.CENTER);
         infoPanel.add(currentDateLabel);
         infoPanel.add(currentTimeLabel);
-        DateUpdateTimer();
         
         // log 패널 설정
         logTextPane = new JTextPane();
         logTextPane.setEditable(false); // 편집 불가능하도록 설정
-        JScrollPane scrollPane = new JScrollPane(logTextPane);
+        scrollPane = new JScrollPane(logTextPane);
         rightPanel.add(scrollPane, BorderLayout.CENTER);
         
         add(leftPanel);
         add(rightPanel);
 
-        roomReservationMap = new HashMap<>();
-
+        TickTimer();
         setVisible(true);
     }
 
-    private JPanel createFloorPanel(String floor, int startRoomNumber, int endRoomNumber) 
+    public JPanel createFloorPanel(String floor, int startRoomNumber, int endRoomNumber) 
     {	
         JPanel floorPanel = new JPanel();
         floorPanel.setLayout(new GridLayout(0, 7)); // 열 개수를 설정하여 다음 줄로 넘어가도록 함
@@ -118,7 +123,7 @@ public class MotelReservationProgram extends JFrame
             JLabel roomLabel = new JLabel();
             roomLabel.setText(Integer.toString(i) + "호");
             
-            JLabel roomGuest = new JLabel();
+            JLabel roomGuestLabel = new JLabel();
                           
             JButton reserveButton = new JButton("예약");
             JButton checkReservationButton = new JButton("예약 확인"); // 추가된 버튼
@@ -148,7 +153,7 @@ public class MotelReservationProgram extends JFrame
                     panel.add(nameField);
                     panel.add(new JLabel("체크인 날짜:"));
                     panel.add(checkInField);
-                    checkInField.setText(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy.MM.dd"))); // 현재 날짜 미리 입력
+                    checkInField.setText(LocalDate.now().format(DateTimeFormatter.ofPattern("YYYY.MM.dd"))); // 현재 날짜 미리 입력
                     panel.add(new JLabel("체크아웃 날짜:"));
                     panel.add(checkOutField);
                     checkOutField.setText(LocalDate.now().plusDays(1).format(DateTimeFormatter.ofPattern("yyyy.MM.dd"))); // 현재 날짜 + 1일 미리 입력
@@ -208,13 +213,6 @@ public class MotelReservationProgram extends JFrame
                         		breakfastCount, 
                         		memo);
                         
-                        // map에 예약정보 넣기
-                        roomReservationMap.put(roomNumber, reservationInfo);
-                        
-                        // DB 연동
-                        reservationDB = new ReservationDB();
-                        reservationDB.connectToDatabase();
-                        
                         // DB에 예약정보 넣기
                         reservationDB.SaveReservationToDatabase(reservationInfo);
                         
@@ -230,7 +228,7 @@ public class MotelReservationProgram extends JFrame
                     // 버튼 클릭 로그
                     AppendLog("예약 확인 버튼 클릭 - 객실 번호: " + roomNumber, Color.BLACK);
 
-                    ReservationInfo reservationInfo = roomReservationMap.get(roomNumber);
+                    ReservationInfo reservationInfo = reservationDB.getReservationInfoByDateAndRoom(roomNumber, selectDate);
 
                     if (reservationInfo != null) 
                     {
@@ -246,12 +244,6 @@ public class MotelReservationProgram extends JFrame
                                 // 예약 정보 확인 창 닫기
                                 Window window = SwingUtilities.getWindowAncestor(deleteButton);
                                 window.dispose();
-                                
-                                // 예약정보가 삭제되면 텍스트 제거
-                                if (roomReservationMap.isEmpty()) 
-                                {
-                                    roomGuest.setText(""); // roomGuest의 텍스트 제거
-                                }   
                             }
                         });
 
@@ -279,8 +271,7 @@ public class MotelReservationProgram extends JFrame
 
 
             roomPanel.add(roomLabel, BorderLayout.NORTH);
-            roomPanel.add(roomGuest, BorderLayout.CENTER);
-            
+                        
             JPanel buttonPanel = new JPanel(new GridLayout(2, 1));
             buttonPanel.add(reserveButton);
             buttonPanel.add(checkReservationButton); // 예약 확인 버튼 추가
@@ -304,7 +295,7 @@ public class MotelReservationProgram extends JFrame
 
 
     
-    protected void AppendLog(String message, Color color) 
+    public void AppendLog(String message, Color color) 
     {
         // 로그 텍스트 스타일을 설정하기 위한 스타일 컬렉션 생성
         StyledDocument doc = logTextPane.getStyledDocument();
@@ -389,7 +380,38 @@ public class MotelReservationProgram extends JFrame
         return LocalTime.parse(time, formatter);
     }
     
-    private void DateUpdateTimer()
+    private void ShowGuestInfo(int floorStart, int floorEnd)
+    {
+    	ReservationInfo guestInfo = null;
+    	
+        for (int i = floorStart; i <= floorEnd; i++) 
+        {
+        	guestInfo = reservationDB.getReservationInfoByDateAndRoom(Integer.toString(i), selectDate);
+        	        	
+            JPanel roomPanel = new JPanel();
+            roomPanel.setPreferredSize(new Dimension(130, 130)); // 조정된 높이
+            roomPanel.setLayout(new BorderLayout());
+            
+        	JLabel roomGuestLabel = new JLabel();
+        	
+            // roomGuest에 이름 넣기
+            if (guestInfo != null) 
+            {
+            	roomGuestLabel.setText(guestInfo.getName());
+            	roomPanel.add(roomGuestLabel, BorderLayout.CENTER);
+                AppendLog(guestInfo.getName(),Color.black);
+                AppendLog(guestInfo.getRoomNumber(),Color.black);
+            } 
+            else 
+            {
+            	AppendLog(Integer.toString(i),Color.black);
+            	roomGuestLabel.setText("x"); // 예약 정보가 없을 경우 빈 문자열로 설정
+            }
+        	
+        }
+    }
+    
+    private void TickTimer()
     {
         int delay = 1000; // 1초마다 업데이트
         ActionListener taskPerformer = new ActionListener() {
@@ -402,7 +424,10 @@ public class MotelReservationProgram extends JFrame
         timer = new Timer(delay, taskPerformer);
         timer.start();
         
-        
+        ShowGuestInfo(floor7Start, floor7End);
+        ShowGuestInfo(floor8Start, floor8End);
+        ShowGuestInfo(floor9Start, floor9End);
+
     }
     
     public static void main(String[] args) 

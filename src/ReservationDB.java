@@ -122,5 +122,25 @@ public class ReservationDB
 	    
 	    return reservationInfo;
 	}
+	
+	public void deleteReservationByDateAndRoom(String roomNumber, LocalDate date) {
+	    try {
+	    	// SQL 쿼리 작성
+	        String sql = "DELETE FROM reservations WHERE roomNumber = ? AND ? BETWEEN checkInDate AND checkOutDate";
+	        PreparedStatement statement = connection.prepareStatement(sql);
+
+	        // 파라미터 설정
+	        statement.setString(1, roomNumber);
+	        statement.setDate(2, java.sql.Date.valueOf(date));
+
+	        // SQL 실행
+	        int rowsAffected = statement.executeUpdate();
+	    	} 
+	    catch (SQLException e) 
+	    {
+	        e.printStackTrace();
+	    }
+	}
+
 
 }

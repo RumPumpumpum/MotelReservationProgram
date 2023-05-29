@@ -14,11 +14,17 @@ import java.text.SimpleDateFormat;
 
 public class MotelReservationProgram extends JFrame
 {
-    private JLabel currentDateLabel;
-    private JLabel currentTimeLabel;
+	private JLabel currentDateLabel;
+	private JLabel currentTimeLabel;
     
-    public JTextPane logTextPane;
-    public JScrollPane scrollPane;
+    LocalDate selectDate;
+    
+    private Map<String, JPanel> roomPanelMap = new HashMap<>();
+    private Map<String, JLabel> roomLabelMap = new HashMap<>();
+    private Map<String, JLabel> roomGuestMap = new HashMap<>();
+    
+    private JTextPane logTextPane;
+    private JScrollPane scrollPane;
     
     private Timer timer;
     
@@ -31,7 +37,7 @@ public class MotelReservationProgram extends JFrame
     int floor9Start = 901;
     int floor9End = 913;
     
-    LocalDate selectDate = LocalDate.now();
+
     
     public MotelReservationProgram() 
     {
@@ -45,6 +51,13 @@ public class MotelReservationProgram extends JFrame
         // 현재 날짜 레이블 생성
         currentDateLabel = new JLabel();
         currentTimeLabel = new JLabel();
+        
+        // 선택한 날짜 초기화
+        selectDate = LocalDate.now();
+        
+        // 현재 날짜와 시간 초기화
+        LocalDate currentDate = LocalDate.now();
+        LocalTime currentTime = LocalTime.now();
         
         // 체크인 체크아웃 시간 설정
         LocalTime checkInTime = ParseTime("13:00:00"); // 입실 시간
@@ -96,7 +109,7 @@ public class MotelReservationProgram extends JFrame
         add(leftPanel);
         add(rightPanel);
 
-        TickTimer();
+        TickTimer(); // 타이머 호출
         setVisible(true);
     }
 
@@ -111,19 +124,19 @@ public class MotelReservationProgram extends JFrame
         for (int i = startRoomNumber; i <= endRoomNumber; i++) 
         {
             String roomNumber = Integer.toString(i);
-            
-            LocalDate currentDate = LocalDate.now();
-            LocalTime currentTime = LocalTime.now();
-        
+ 
         	
             JPanel roomPanel = new JPanel();
+            roomPanelMap.put(roomNumber, roomPanel); // roomPanel을 roomPanelMap에 추가
             roomPanel.setPreferredSize(new Dimension(130, 130)); // 조정된 높이
-            roomPanel.setLayout(new BorderLayout());
+            roomPanel.setLayout(new BorderLayout());  
             
             JLabel roomLabel = new JLabel();
-            roomLabel.setText(Integer.toString(i) + "호");
+            roomLabelMap.put(roomNumber, roomLabel); // roomLabel을 roomLabelMap에 추가
+            roomLabel.setText(Integer.toString(i) + "호"); 
             
             JLabel roomGuestLabel = new JLabel();
+            roomGuestMap.put(roomNumber, roomGuestLabel); // roomLabel을 roomLabelMap에 추가
                           
             JButton reserveButton = new JButton("예약");
             JButton checkReservationButton = new JButton("예약 확인"); // 추가된 버튼
@@ -271,6 +284,7 @@ public class MotelReservationProgram extends JFrame
 
 
             roomPanel.add(roomLabel, BorderLayout.NORTH);
+            roomPanel.add(roomGuestLabel, BorderLayout.CENTER);
                         
             JPanel buttonPanel = new JPanel(new GridLayout(2, 1));
             buttonPanel.add(reserveButton);
@@ -359,7 +373,7 @@ public class MotelReservationProgram extends JFrame
     	AppendLog("예약 삭제 - 객실 번호: " + roomNumber, Color.RED);
         AppendReservationLog(reservationInfo, Color.RED);
 
-        roomReservationMap.remove(roomNumber);
+        reservationDB.deleteReservationByDateAndRoom(roomNumber, selectDate);
         JOptionPane.showMessageDialog(
                 MotelReservationProgram.this,
                 "예약 정보가 삭제되었습니다.",
@@ -386,26 +400,19 @@ public class MotelReservationProgram extends JFrame
     	
         for (int i = floorStart; i <= floorEnd; i++) 
         {
-        	guestInfo = reservationDB.getReservationInfoByDateAndRoom(Integer.toString(i), selectDate);
-        	        	
-            JPanel roomPanel = new JPanel();
-            roomPanel.setPreferredSize(new Dimension(130, 130)); // 조정된 높이
-            roomPanel.setLayout(new BorderLayout());
-            
-        	JLabel roomGuestLabel = new JLabel();
-        	
+        	String roomNumber = Integer.toString(i);
+        	guestInfo = reservationDB.getReservationInfoByDateAndRoom(roomNumber, selectDate);      
+
             // roomGuest에 이름 넣기
             if (guestInfo != null) 
             {
-            	roomGuestLabel.setText(guestInfo.getName());
-            	roomPanel.add(roomGuestLabel, BorderLayout.CENTER);
-                AppendLog(guestInfo.getName(),Color.black);
-                AppendLog(guestInfo.getRoomNumber(),Color.black);
+            	roomGuestMap.get(roomNumber).setText(guestInfo.getName());
+
             } 
             else 
             {
-            	AppendLog(Integer.toString(i),Color.black);
-            	roomGuestLabel.setText("x"); // 예약 정보가 없을 경우 빈 문자열로 설정
+            	roomGuestMap.get(roomNumber).setText("");
+
             }
         	
         }
@@ -414,20 +421,24 @@ public class MotelReservationProgram extends JFrame
     private void TickTimer()
     {
         int delay = 1000; // 1초마다 업데이트
-        ActionListener taskPerformer = new ActionListener() {
+         
+        // 안에있는 작업들은 주기적으로 업데이트
+        ActionListener taskPerformer = new ActionListener()
+        {
             public void actionPerformed(ActionEvent evt) 
             {
                 currentDateLabel.setText("현재 날짜: " + LocalDate.now());
                 currentTimeLabel.setText("현재 시간: " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+                ShowGuestInfo(floor7Start, floor7End);
+                ShowGuestInfo(floor8Start, floor8End);
+                ShowGuestInfo(floor9Start, floor9End);
             }
         };
+        
+
+        
         timer = new Timer(delay, taskPerformer);
         timer.start();
-        
-        ShowGuestInfo(floor7Start, floor7End);
-        ShowGuestInfo(floor8Start, floor8End);
-        ShowGuestInfo(floor9Start, floor9End);
-
     }
     
     public static void main(String[] args) 

@@ -12,18 +12,26 @@ import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.text.SimpleDateFormat;
 
-
-
-public class MotelReservationProgram extends JFrame 
+public class MotelReservationProgram extends JFrame
 {
+    
     private Map<String, ReservationInfo> roomReservationMap;
+    
     private JLabel currentDateLabel;
     private JLabel currentTimeLabel;
+    
     private JTextPane logTextPane;
+    
     private Timer timer;
+    
+    private ReservationDB reservationDB;
     
     public MotelReservationProgram() 
     {
+        // DB 연동
+        reservationDB = new ReservationDB();
+        reservationDB.connectToDatabase();
+        
         setTitle("모텔 객실 예약 관리 프로그램");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
@@ -32,8 +40,8 @@ public class MotelReservationProgram extends JFrame
         currentTimeLabel = new JLabel();
         
         // 체크인 체크아웃 시간 설정
-        LocalTime checkInTime = parseTime("13:00:00"); // 입실 시간
-        LocalTime checkOutTime = parseTime("12:00:00"); // 퇴실 시간
+        LocalTime checkInTime = ParseTime("13:00:00"); // 입실 시간
+        LocalTime checkOutTime = ParseTime("12:00:00"); // 퇴실 시간
         
         // 프레임을 전체화면으로 고정
         setExtendedState(JFrame.MAXIMIZED_BOTH);
@@ -88,7 +96,7 @@ public class MotelReservationProgram extends JFrame
     }
 
     private JPanel createFloorPanel(String floor, int startRoomNumber, int endRoomNumber) 
-    {
+    {	
         JPanel floorPanel = new JPanel();
         floorPanel.setLayout(new GridLayout(0, 7)); // 열 개수를 설정하여 다음 줄로 넘어가도록 함
 
@@ -121,16 +129,17 @@ public class MotelReservationProgram extends JFrame
                 public void actionPerformed(ActionEvent e) 
                 {
                     // 버튼 클릭 로그
-                    appendLog("예약 버튼 클릭 - 객실 번호: " + roomNumber, Color.BLACK);
+                    AppendLog("예약 버튼 클릭 - 객실 번호: " + roomNumber, Color.BLACK);
 
-                    JPanel panel = new JPanel(new GridLayout(8, 2)); // 입력 폼을 위한 그리드 레이아웃
+                    JPanel panel = new JPanel(new GridLayout(9, 2)); // 입력 폼을 위한 그리드 레이아웃
                     JLabel roomNumberLabel = new JLabel("객실 번호: " + roomNumber); // 객실 번호 표시
                     JTextField nameField = new JTextField();
                     JTextField checkInField = new JTextField();
                     JTextField checkOutField = new JTextField();
                     JTextField carNumberField = new JTextField();
-                    JTextField breakfastField = new JTextField();
-                    JTextField paymentField = new JTextField();
+                    JTextField breakfastCountField = new JTextField();
+                    JTextField paymentMethodField = new JTextField();
+                    JTextField paymentAmountField = new JTextField();
                     JTextField memoField = new JTextField();
 
                     panel.add(roomNumberLabel);
@@ -146,9 +155,11 @@ public class MotelReservationProgram extends JFrame
                     panel.add(new JLabel("차량 번호:"));
                     panel.add(carNumberField);
                     panel.add(new JLabel("조식 인원:"));
-                    panel.add(breakfastField);
+                    panel.add(breakfastCountField);
                     panel.add(new JLabel("결제 수단:"));
-                    panel.add(paymentField);
+                    panel.add(paymentMethodField);
+                    panel.add(new JLabel("결제 금액:"));
+                    panel.add(paymentAmountField);
                     panel.add(new JLabel("메모:"));
                     panel.add(memoField);
 
@@ -157,9 +168,7 @@ public class MotelReservationProgram extends JFrame
                             panel,
                             "예약 정보 입력",
                             JOptionPane.OK_CANCEL_OPTION,
-                            JOptionPane.PLAIN_MESSAGE
-                            
-                    );
+                            JOptionPane.PLAIN_MESSAGE );
 
                     if (result == JOptionPane.OK_OPTION) 
                     {
@@ -167,79 +176,73 @@ public class MotelReservationProgram extends JFrame
                         String checkIn = checkInField.getText();
                         String checkOut = checkOutField.getText();
                         String carNumber = carNumberField.getText();
-                        String breakfast = breakfastField.getText();
-                        String payment = paymentField.getText();
+                        int breakfastCount = Integer.parseInt(breakfastCountField.getText());
+                        String paymentMethod = paymentMethodField.getText();
+                        int paymentAmount = Integer.parseInt(paymentAmountField.getText());
                         String memo = memoField.getText();
 
-                        // 예약 정보를 저장하거나 처리하는 로직 추가
-                        LocalDate checkInDate = parseDate(checkIn);
-                        LocalDate checkOutDate = parseDate(checkOut);
+                        // 예약 정보를 저장하거나 처리 String -> LocalDate
+                        LocalDate checkInDate = ParseDate(checkIn);
+                        LocalDate checkOutDate = ParseDate(checkOut);
                         
+                        // 체크아웃 날짜가 체크인 날짜보다 빠르거나 같은 경우 에러
                         if (checkOutDate.isBefore(checkInDate) || checkOutDate.isEqual(checkInDate))
                         {
                             JOptionPane.showMessageDialog(
                                 MotelReservationProgram.this,
                                 "체크아웃 날짜가 잘못 되었습니다.",
                                 "오류",
-                                JOptionPane.ERROR_MESSAGE
-                            );
+                                JOptionPane.ERROR_MESSAGE);
+                            
                             return; // 예약 정보 저장 및 처리를 하지 않고 종료
                         }
 
-                        ReservationInfo reservationInfo = new ReservationInfo(checkInDate, 
-                        		checkOutDate, 
+                        ReservationInfo reservationInfo = new ReservationInfo(
+                        		roomNumber,
                         		name, 
+                        		checkInDate, 
+                        		checkOutDate, 
+                           		paymentMethod,
+                        		paymentAmount,
                         		carNumber, 
-                        		breakfast, 
-                        		payment, 
+                        		breakfastCount, 
                         		memo);
                         
+                        // map에 예약정보 넣기
                         roomReservationMap.put(roomNumber, reservationInfo);
                         
+                        // DB 연동
+                        reservationDB = new ReservationDB();
+                        reservationDB.connectToDatabase();
+                        
+                        // DB에 예약정보 넣기
+                        reservationDB.SaveReservationToDatabase(reservationInfo);
+                        
                         // 예약 정보 로그 출력
-                        appendLog("예약 완료 - 객실 번호: " + roomNumber, Color.BLUE);
-                        appendReservationLog(reservationInfo, Color.BLUE);
-                                            }
+                        AppendLog("예약 완료 - 객실 번호: " + roomNumber, Color.BLUE);
+                        AppendReservationLog(reservationInfo, Color.BLUE);
+                     }
                 }
             });
 
             checkReservationButton.addActionListener(new ActionListener() {
                 public void actionPerformed(ActionEvent e) {
                     // 버튼 클릭 로그
-                    appendLog("예약 확인 버튼 클릭 - 객실 번호: " + roomNumber, Color.BLACK);
+                    AppendLog("예약 확인 버튼 클릭 - 객실 번호: " + roomNumber, Color.BLACK);
 
                     ReservationInfo reservationInfo = roomReservationMap.get(roomNumber);
 
-                    if (reservationInfo != null) {
-                        // 예약 정보를 편집 불가능한 상태로 출력하여 확인하는 메시지 대화상자 표시
-                        StringBuilder message = new StringBuilder();
-                        message.append("객실 번호: ").append(roomNumber).append("\n");
-                        message.append("이름: ").append(reservationInfo.getName()).append("\n");
-                        message.append("체크인 날짜: ").append(reservationInfo.getCheckIn()).append("\n");
-                        message.append("체크아웃 날짜: ").append(reservationInfo.getCheckOut()).append("\n");
-                        message.append("차량 번호: ").append(reservationInfo.getCarNumber()).append("\n");
-                        message.append("조식 인원: ").append(reservationInfo.getBreakfast()).append("\n");
-                        message.append("결제 수단: ").append(reservationInfo.getPayment()).append("\n");
-                        message.append("메모: ").append(reservationInfo.getMemo()).append("\n");
-
-                        JTextArea textArea = new JTextArea(message.toString());
-                        textArea.setEditable(false);
+                    if (reservationInfo != null) 
+                    {
+                    	JTextArea textArea = ShowReservationInfo(roomNumber, reservationInfo);
 
                         JButton deleteButton = new JButton("삭제");
-                        deleteButton.addActionListener(new ActionListener() {
-                            public void actionPerformed(ActionEvent e) {
-                                // 버튼 클릭 로그
-                                appendLog("예약 삭제 - 객실 번호: " + roomNumber, Color.RED);
-                                appendReservationLog(reservationInfo, Color.RED);
-
-                                roomReservationMap.remove(roomNumber);
-                                JOptionPane.showMessageDialog(
-                                        MotelReservationProgram.this,
-                                        "예약 정보가 삭제되었습니다.",
-                                        "예약 정보 삭제",
-                                        JOptionPane.INFORMATION_MESSAGE
-                                );
-
+                        deleteButton.addActionListener(new ActionListener() 
+                        {
+                            public void actionPerformed(ActionEvent e) 
+                            {
+                                DeleteReservationInfo(roomNumber, reservationInfo);
+                                
                                 // 예약 정보 확인 창 닫기
                                 Window window = SwingUtilities.getWindowAncestor(deleteButton);
                                 window.dispose();
@@ -248,8 +251,7 @@ public class MotelReservationProgram extends JFrame
                                 if (roomReservationMap.isEmpty()) 
                                 {
                                     roomGuest.setText(""); // roomGuest의 텍스트 제거
-                                }
-                                
+                                }   
                             }
                         });
 
@@ -261,10 +263,10 @@ public class MotelReservationProgram extends JFrame
                                 MotelReservationProgram.this,
                                 messagePanel,
                                 "예약 정보 확인",
-                                JOptionPane.INFORMATION_MESSAGE
-                        );
-
-                    } else {
+                                JOptionPane.INFORMATION_MESSAGE);
+                    } 
+                    else 
+                    {
                         JOptionPane.showMessageDialog(
                                 MotelReservationProgram.this,
                                 "해당 객실에 예약된 정보가 없습니다.",
@@ -302,7 +304,7 @@ public class MotelReservationProgram extends JFrame
 
 
     
-    private void appendLog(String message, Color color) 
+    protected void AppendLog(String message, Color color) 
     {
         // 로그 텍스트 스타일을 설정하기 위한 스타일 컬렉션 생성
         StyledDocument doc = logTextPane.getStyledDocument();
@@ -310,39 +312,78 @@ public class MotelReservationProgram extends JFrame
 
         // 메시지에 해당하는 스타일을 적용
         StyleConstants.setForeground(style, color);
-
-        try {
+ 
+        try 
+        {
             // 현재 날짜 및 시간을 포맷팅하여 로그에 추가
             SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
             String formattedDate = formatter.format(new Date());
 
             // 로그 메시지와 날짜를 추가
             doc.insertString(doc.getLength(), "[" + formattedDate + "] " + message + "\n", style);
-        } catch (BadLocationException e) {
+        } 
+        catch (BadLocationException e) 
+        {
             e.printStackTrace();
         }
     }
    
-    private void appendReservationLog(ReservationInfo reservationInfo,Color color) 
+    private void AppendReservationLog(ReservationInfo reservationInfo,Color color) 
     {
-        appendLog("======================================", color);
-        appendLog("예약자 명: " + reservationInfo.getName(), color);
-        appendLog("체크인 날짜: " + reservationInfo.getCheckIn(), color);
-        appendLog("체크아웃 날짜: " + reservationInfo.getCheckOut(), color);
-        appendLog("차량번호: " + reservationInfo.getCarNumber(), color);
-        appendLog("조식 인원: " + reservationInfo.getBreakfast(), color);
-        appendLog("결제 수단: " + reservationInfo.getPayment(), color);
-        appendLog("메모: " + reservationInfo.getMemo(), color);
-        appendLog("======================================", color);
+        AppendLog("======================================", color);
+        AppendLog("예약자 명: " + reservationInfo.getName(), color);
+        AppendLog("체크인 날짜: " + reservationInfo.getCheckIn(), color);
+        AppendLog("체크아웃 날짜: " + reservationInfo.getCheckOut(), color);
+        AppendLog("결제 수단: " + reservationInfo.getPaymentMethod(), color);
+        AppendLog("결제 금액: " + reservationInfo.getPaymentAmount(), color);
+        AppendLog("차량번호: " + reservationInfo.getCarNumber(), color);
+        AppendLog("조식 인원: " + reservationInfo.getBreakfastCount(), color);
+        AppendLog("메모: " + reservationInfo.getMemo(), color);
+        AppendLog("======================================", color);
+    }   
+    
+    private JTextArea ShowReservationInfo(String roomNumber, ReservationInfo reservationInfo)
+    {
+    	// 예약 정보를 편집 불가능한 상태로 출력하여 확인하는 메시지 대화상자 표시
+        StringBuilder message = new StringBuilder();
+        message.append("객실 번호: ").append(roomNumber).append("\n");
+        message.append("이름: ").append(reservationInfo.getName()).append("\n");
+        message.append("체크인 날짜: ").append(reservationInfo.getCheckIn()).append("\n");
+        message.append("체크아웃 날짜: ").append(reservationInfo.getCheckOut()).append("\n");
+        message.append("결제 수단: ").append(reservationInfo.getPaymentMethod()).append("\n");
+        message.append("결제 금액: ").append(reservationInfo.getPaymentAmount()).append("\n");
+        message.append("차량 번호: ").append(reservationInfo.getCarNumber()).append("\n");
+        message.append("조식 인원: ").append(reservationInfo.getBreakfastCount()).append("\n");
+        message.append("메모: ").append(reservationInfo.getMemo()).append("\n");
+
+        JTextArea textArea = new JTextArea(message.toString());
+        textArea.setEditable(false);
+        
+        return textArea;
     }
     
-    private LocalDate parseDate(String date) 
+    private void DeleteReservationInfo(String roomNumber, ReservationInfo reservationInfo)
+    {
+    	// 버튼 클릭 로그
+    	AppendLog("예약 삭제 - 객실 번호: " + roomNumber, Color.RED);
+        AppendReservationLog(reservationInfo, Color.RED);
+
+        roomReservationMap.remove(roomNumber);
+        JOptionPane.showMessageDialog(
+                MotelReservationProgram.this,
+                "예약 정보가 삭제되었습니다.",
+                "예약 정보 삭제",
+                JOptionPane.INFORMATION_MESSAGE
+        );
+    }
+    
+    private LocalDate ParseDate(String date) 
     {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
         return LocalDate.parse(date, formatter);
     }
     
-    private LocalTime parseTime(String time) 
+    private LocalTime ParseTime(String time) 
     {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
         return LocalTime.parse(time, formatter);

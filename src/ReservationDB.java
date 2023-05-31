@@ -20,7 +20,6 @@ public class ReservationDB
     private static final String DB_USER = "root";
     private static final String DB_PASSWORD = "admin";
 
-    
     public void connectToDatabase() 
     {
         try
@@ -57,10 +56,10 @@ public class ReservationDB
 	            statement.setString(2, reservationInfo.getName());
 	            statement.setDate(3, java.sql.Date.valueOf(reservationInfo.getCheckIn()));
 	            statement.setDate(4, java.sql.Date.valueOf(reservationInfo.getCheckOut()));
-	            statement.setString(7, reservationInfo.getPaymentMethod());
-	            statement.setInt(8, reservationInfo.getPaymentAmount());
-	            statement.setString(5, reservationInfo.getCarNumber());
-	            statement.setInt(6, reservationInfo.getBreakfastCount());
+	            statement.setString(5, reservationInfo.getPaymentMethod());
+	            statement.setInt(6, reservationInfo.getPaymentAmount());
+	            statement.setString(7, reservationInfo.getCarNumber());
+	            statement.setInt(8, reservationInfo.getBreakfastCount());
 	            statement.setString(9, reservationInfo.getMemo());
 	            
 	            // SQL 실행
@@ -74,10 +73,9 @@ public class ReservationDB
 	
 	}
 	
-	public ReservationInfo getReservationInfoByDateAndRoom(String roomNumber, LocalDate date, LocalTime checkOutTime) {
-	    ReservationInfo reservationInfo = null;
-	    LocalDate minCheckInDate = date;
-	    LocalDate maxCheckOutDate = date;
+	public ReservationInfo getReservationInfoByDateAndRoom(String roomNumber, LocalDate date, LocalTime checkOutTime, LocalDate selectDate) {
+		ReservationInfo leaveReservationInfo = null;
+		ReservationInfo reservationInfo = null;
 	    try 
 	    {
 	        // SQL 쿼리 작성
@@ -90,6 +88,10 @@ public class ReservationDB
 
 	        // SQL 실행 및 결과 조회
 	        ResultSet resultSet = statement.executeQuery();
+	        
+            // 현재 날짜/시간
+            LocalTime currentTime = LocalTime.now();
+            LocalDate currentDate = LocalDate.now();
 
 	        while (resultSet.next()) 
 	        {
@@ -102,18 +104,12 @@ public class ReservationDB
 	            String carNumber = resultSet.getString("carNumber");
 	            int breakfastCount = resultSet.getInt("breakfastCount");
 	            String memo = resultSet.getString("memo");
-	        
-	            // 결과 처리
-	            LocalTime currentTime = LocalTime.now();
+
 	            
-	            /*
-	             * 두개의 예약이 있을 때, 첫번째 예약의 체크아웃 날짜와 두번째 예약의 체크인 날짜가 겹칠 수 있다.
-	             * 그럴 때 현재 시간이 checkOutTime 이전이면 오늘 체크아웃 하는 예약을 표시하고(체크인 날짜가 가장 앞인 예약)
-	             * checkOutTime 이후면 오늘 체크인 하는 예약을 표시한다(체크아웃 날짜가 가장 뒤인 예약)
-	             */
-	            if (currentTime.isBefore(checkOutTime) && checkInDate.isBefore(minCheckInDate)) 
+	            // 체크아웃 날짜가 기준날짜와 같으면 퇴실예정 예약으로 저장
+	            if (checkOutDate.isEqual(selectDate))
 	            {
-	                reservationInfo = new ReservationInfo(
+	               leaveReservationInfo = new ReservationInfo(
 	                    roomNumber,
 	                    name,
 	                    checkInDate,
@@ -124,7 +120,8 @@ public class ReservationDB
 	                    breakfastCount,
 	                    memo);
 	            }    
-	            else if(currentTime.isAfter(checkOutTime) && checkOutDate.isAfter(maxCheckOutDate))
+	            // 아니라면 일반 예약으로 저장
+	            else
 	            {
 	                reservationInfo = new ReservationInfo(
 	                    roomNumber,
@@ -138,6 +135,27 @@ public class ReservationDB
 	                    memo);	            
 	            }
 	        }
+	        
+	        // 기준 날짜와 현재 날짜가 같다면
+	        if(currentDate.isEqual(selectDate))
+	        {
+	        	// 지금 시간이 체크아웃 시간 이전이면 퇴실예정 예약 표시
+	        	if(currentTime.isBefore(checkOutTime))
+	        	{
+		        	return leaveReservationInfo;
+	        	}
+	        	// 지금 시간이 체크아웃 시간 이후면 일반예약 표시
+	        	else if(currentTime.isAfter(checkOutTime))
+	        	{
+		        	return reservationInfo;
+	        	}
+
+	        }
+	        // 기준 날짜가 현재 날짜가 아니면 일반예약 표시
+	        else
+	        {
+	        	return reservationInfo;
+	        }
 	    }
 	    catch (SQLException e) 
 	    {
@@ -147,10 +165,8 @@ public class ReservationDB
 	    return reservationInfo;
 	}
 
-
-
-	
-	public void deleteReservationByDateAndRoom(String roomNumber, LocalDate date) {
+	public void deleteReservationByDateAndRoom(String roomNumber, LocalDate date)
+	{
 	    try {
 	    	// SQL 쿼리 작성
 	        String sql = "DELETE FROM reservations WHERE roomNumber = ? AND ? BETWEEN checkInDate AND checkOutDate";
@@ -168,6 +184,74 @@ public class ReservationDB
 	        e.printStackTrace();
 	    }
 	}
+	
+	public boolean isReservationDateValid(ReservationInfo reservationInfo) 
+	{
+	    try {
+	        PreparedStatement statement = connection.prepareStatement(
+	                "SELECT checkInDate, checkOutDate FROM reservations WHERE roomNumber = ?"
+	        );
+	        statement.setString(1, reservationInfo.getRoomNumber());
+	        ResultSet resultSet = statement.executeQuery();
 
+	        while (resultSet.next()) {
+	            LocalDate existingCheckInDate = resultSet.getObject("checkInDate", LocalDate.class);
+	            LocalDate existingCheckOutDate = resultSet.getObject("checkOutDate", LocalDate.class);
 
+	            // 입력한 체크인 날짜와 체크아웃 날짜가 이미 입력된 예약의 체크인과 체크아웃 날짜 사이에 겹치는지 확인
+	            if ((reservationInfo.getCheckIn().isBefore(existingCheckOutDate) && reservationInfo.getCheckOut().isAfter(existingCheckInDate))
+	            		|| ((reservationInfo.getCheckIn().isEqual(existingCheckInDate) && reservationInfo.getCheckOut().isEqual(existingCheckOutDate))))
+	            		{
+
+	                return false;
+	            }
+	        }
+
+	        resultSet.close();
+	        statement.close();
+	    } catch (SQLException e) {
+	        e.printStackTrace();
+	    }
+
+	    return true;
+	}
+	
+	public LocalTime getCheckOutTime()
+	{    
+		LocalTime checkOutTime = null;
+        try 
+        {
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT checkOutTime FROM reservation_options");
+
+            if (resultSet.next()) {
+                java.sql.Time sqlTime = resultSet.getTime("checkOutTime");
+                checkOutTime = sqlTime.toLocalTime();
+            }
+            
+            resultSet.close();
+            statement.close();
+        } 
+        catch (SQLException e)
+        {
+            e.printStackTrace();
+        }
+        
+        return checkOutTime;
+    }
+	
+    public void setCheckOutTime(LocalTime checkOutTime) 
+    {
+        try 
+        {
+            PreparedStatement statement = connection.prepareStatement("UPDATE reservation_options SET checkOutTime = ?");
+            statement.setString(1, checkOutTime.toString());
+            statement.executeUpdate();
+            statement.close();
+        } 
+        catch (SQLException e)
+        {
+            e.printStackTrace();
+        }
+    }
 }

@@ -18,10 +18,10 @@ public class MotelReservationProgram extends JFrame
 	private JLabel currentDateLabel;
 	private JLabel currentTimeLabel;
 	private JLabel selectDateLabel;
+	private JLabel checkOutTimeLabel;
     
-    LocalDate selectDate;
-    public LocalTime checkOutTime;
-    
+    public LocalDate selectDate;
+
     private Map<String, JPanel> roomPanelMap = new HashMap<>();
     private Map<String, JLabel> roomLabelMap = new HashMap<>();
     private Map<String, JLabel> roomGuestMap = new HashMap<>();
@@ -46,21 +46,23 @@ public class MotelReservationProgram extends JFrame
     {
         // DB 연동
         reservationDB = new ReservationDB();
-        reservationDB.connectToDatabase();
+        reservationDB.connectToDatabase(); 
         
         setTitle("모텔 객실 예약 관리 프로그램");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        // 현재 날짜 레이블 생성
+        // 정보 표시 레이블들 생성
         currentDateLabel = new JLabel();
         currentTimeLabel = new JLabel();
         selectDateLabel = new JLabel();
+        checkOutTimeLabel = new JLabel();
         
         // 폰트 설정
         Font bigFont = new Font(Font.DIALOG, Font.PLAIN, 20);
         currentDateLabel.setFont(bigFont);
         currentTimeLabel.setFont(bigFont);
         selectDateLabel.setFont(bigFont);
+        checkOutTimeLabel.setFont(bigFont);
         
         // 선택한 날짜 초기화
         selectDate = LocalDate.now();
@@ -69,8 +71,6 @@ public class MotelReservationProgram extends JFrame
         LocalDate currentDate = LocalDate.now();
         LocalTime currentTime = LocalTime.now();
         
-        // 체크인 체크아웃 시간 설정
-        checkOutTime = ParseTime("12:00:00"); // 퇴실 시간
         
         // 프레임을 전체화면으로 고정
         setExtendedState(JFrame.MAXIMIZED_BOTH);
@@ -105,10 +105,12 @@ public class MotelReservationProgram extends JFrame
         JPanel logPanel = new JPanel();
         
         // info 패널 설정
+        infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
         rightPanel.add(infoPanel, BorderLayout.CENTER);
-        infoPanel.add(Box.createVerticalStrut(100)); // 여백 설정
         infoPanel.add(currentDateLabel);
         infoPanel.add(currentTimeLabel);
+        
+        infoPanel.add(Box.createVerticalStrut(100)); // 수직 간격 추가
         infoPanel.add(selectDateLabel);
         JButton setSelectDateButton = new JButton("기준날짜 변경");
         
@@ -123,9 +125,9 @@ public class MotelReservationProgram extends JFrame
 
                 JTextField selectDateField = new JTextField();
 
-                panel.add(new JLabel("기준 날짜:"));
+                panel.add(new JLabel("기준 날짜: "));
                 panel.add(selectDateField);
-                selectDateField.setText(selectDate.format(DateTimeFormatter.ofPattern("YYYY.MM.dd"))); // 현재 날짜 미리 입력
+                selectDateField.setText(selectDate.format(DateTimeFormatter.ofPattern("YYYY.MM.dd")));
 
                 int result = JOptionPane.showConfirmDialog(
                         MotelReservationProgram.this,
@@ -140,12 +142,49 @@ public class MotelReservationProgram extends JFrame
                     selectDate = ParseDate(newSelectDate);
                     
                     // 로그 출력
-                    AppendLog("기준날짜 변경 " + selectDate, Color.BLACK);
+                    AppendLog("기준날짜 변경 " + selectDate, Color.BLUE);
                  }
             }
         });
-        
         infoPanel.add(setSelectDateButton); // info패널에 버튼 추가
+        
+        infoPanel.add(Box.createVerticalStrut(100)); // 수직 간격 추가
+        infoPanel.add(checkOutTimeLabel);
+        JButton setCheckOutTimeButton = new JButton("체크아웃 시간 변경");
+        
+        setCheckOutTimeButton.addActionListener(new ActionListener() 
+        {
+            public void actionPerformed(ActionEvent e) 
+            {
+                // 버튼 클릭 로그
+                AppendLog("체크아웃 시간 설정버튼 클릭", Color.BLACK);
+
+                JPanel panel = new JPanel(new GridLayout(1, 1)); // 입력 폼을 위한 그리드 레이아웃
+
+                JTextField checkOutTimeField = new JTextField();
+
+                panel.add(new JLabel("체크아웃 시간: "));
+                panel.add(checkOutTimeField);
+                checkOutTimeField.setText(reservationDB.getCheckOutTime().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+
+                int result = JOptionPane.showConfirmDialog(
+                        MotelReservationProgram.this,
+                        panel,
+                        "시간 변경",
+                        JOptionPane.OK_CANCEL_OPTION,
+                        JOptionPane.PLAIN_MESSAGE );
+
+                if (result == JOptionPane.OK_OPTION) 
+                {
+                    String newCheckOutTime = checkOutTimeField.getText();
+                    reservationDB.setCheckOutTime(ParseTime(newCheckOutTime));
+                    
+                    // 로그 출력
+                    AppendLog("체크아웃 시간 변경" + reservationDB.getCheckOutTime(), Color.BLUE);
+                 }
+            }
+        });
+        infoPanel.add(setCheckOutTimeButton); // info패널에 버튼 추가
         
         // log 패널 설정
         logTextPane = new JTextPane();
@@ -155,7 +194,7 @@ public class MotelReservationProgram extends JFrame
         
         add(leftPanel);
         add(rightPanel);
-
+  
         TickTimer(); // 타이머 호출
         setVisible(true);
     }
@@ -273,8 +312,23 @@ public class MotelReservationProgram extends JFrame
                         		breakfastCount, 
                         		memo);
                         
-                        // DB에 예약정보 넣기
-                        reservationDB.SaveReservationToDatabase(reservationInfo);
+                        if(reservationDB.isReservationDateValid(reservationInfo))
+                        {
+                            // DB에 예약정보 넣기
+                            reservationDB.SaveReservationToDatabase(reservationInfo);
+                        }
+                        else
+                        {
+                            JOptionPane.showMessageDialog(
+                                    MotelReservationProgram.this,
+                                    "예약기간 내에 이미 예약이 존재합니다.",
+                                    "오류",
+                                    JOptionPane.ERROR_MESSAGE);
+                                
+                            	AppendLog("예약실패 (사유: 예약 기간 중복) - 객실 번호: " + roomNumber, Color.RED);
+                                return; // 예약 정보 저장 및 처리를 하지 않고 종료
+                        }
+
                         
                         // 예약 정보 로그 출력
                         AppendLog("예약 완료 - 객실 번호: " + roomNumber, Color.BLUE);
@@ -288,7 +342,7 @@ public class MotelReservationProgram extends JFrame
                     // 버튼 클릭 로그
                     AppendLog("예약 확인 버튼 클릭 - 객실 번호: " + roomNumber, Color.BLACK);
 
-                    ReservationInfo reservationInfo = reservationDB.getReservationInfoByDateAndRoom(roomNumber, selectDate, checkOutTime);
+                    ReservationInfo reservationInfo = reservationDB.getReservationInfoByDateAndRoom(roomNumber, selectDate, reservationDB.getCheckOutTime(), selectDate);
 
                     if (reservationInfo != null) 
                     {
@@ -446,7 +500,7 @@ public class MotelReservationProgram extends JFrame
         for (int i = floorStart; i <= floorEnd; i++) 
         {
         	String roomNumber = Integer.toString(i);
-        	guestInfo = reservationDB.getReservationInfoByDateAndRoom(roomNumber, selectDate, checkOutTime);      
+        	guestInfo = reservationDB.getReservationInfoByDateAndRoom(roomNumber, selectDate, reservationDB.getCheckOutTime(), selectDate);      
 
             // roomGuest에 이름 넣기
             if (guestInfo != null) 
@@ -484,6 +538,7 @@ public class MotelReservationProgram extends JFrame
                 currentDateLabel.setText("현재 날짜: " + LocalDate.now());
                 currentTimeLabel.setText("현재 시간: " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
                 selectDateLabel.setText("기준 날짜: " + selectDate);
+                checkOutTimeLabel.setText("체크아웃 시간: " + reservationDB.getCheckOutTime());
                 ShowGuestInfo(floor7Start, floor7End);
                 ShowGuestInfo(floor8Start, floor8End);
                 ShowGuestInfo(floor9Start, floor9End);

@@ -10,7 +10,10 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.List;
+import java.util.ArrayList;
 import java.text.SimpleDateFormat;
+import java.time.temporal.ChronoUnit;
 
 public class ReservationDB 
 {	
@@ -73,7 +76,7 @@ public class ReservationDB
 	
 	}
 	
-	public ReservationInfo getReservationInfoByDateAndRoom(String roomNumber, LocalDate date, LocalTime checkOutTime, LocalDate selectDate) {
+	public ReservationInfo getReservationInfoByDateAndRoom(String roomNumber, LocalDate selectDate, LocalTime checkOutTime, String infoType) {
 		ReservationInfo leaveReservationInfo = null;
 		ReservationInfo reservationInfo = null;
 	    try 
@@ -84,7 +87,7 @@ public class ReservationDB
 
 	        // 파라미터 설정
 	        statement.setString(1, roomNumber);
-	        statement.setDate(2, java.sql.Date.valueOf(date));
+	        statement.setDate(2, java.sql.Date.valueOf(selectDate));
 
 	        // SQL 실행 및 결과 조회
 	        ResultSet resultSet = statement.executeQuery();
@@ -139,19 +142,23 @@ public class ReservationDB
 	        // 기준 날짜와 현재 날짜가 같다면
 	        if(currentDate.isEqual(selectDate))
 	        {
-	        	// 지금 시간이 체크아웃 시간 이전이면 퇴실예정 예약 표시
-	        	if(currentTime.isBefore(checkOutTime))
+	        	
+	        	if(infoType == "leave")
 	        	{
 		        	return leaveReservationInfo;
 	        	}
-	        	// 지금 시간이 체크아웃 시간 이후면 일반예약 표시
-	        	else if(currentTime.isAfter(checkOutTime))
+	        	
+	        	else
 	        	{
 		        	return reservationInfo;
 	        	}
 
 	        }
 	        // 기준 날짜가 현재 날짜가 아니면 일반예약 표시
+        	if(infoType == "leave")
+        	{
+	        	return null;
+        	}
 	        else
 	        {
 	        	return reservationInfo;
@@ -169,7 +176,7 @@ public class ReservationDB
 	{
 	    try {
 	    	// SQL 쿼리 작성
-	        String sql = "DELETE FROM reservations WHERE roomNumber = ? AND ? BETWEEN checkInDate AND checkOutDate";
+	        String sql = "DELETE FROM reservations WHERE roomNumber = ? AND checkOutDate = ?";
 	        PreparedStatement statement = connection.prepareStatement(sql);
 
 	        // 파라미터 설정
@@ -254,4 +261,302 @@ public class ReservationDB
             e.printStackTrace();
         }
     }
+    
+    public List<ReservationInfo> getReservationsByRoomNumber(String roomNumber) 
+    {
+        List<ReservationInfo> reservations = new ArrayList<>();
+        try {
+            // SQL 쿼리 작성
+            String sql = "SELECT * FROM reservations WHERE roomNumber = ?";
+            PreparedStatement statement = connection.prepareStatement(sql);
+
+            // 파라미터 설정
+            statement.setString(1, roomNumber);
+
+            // SQL 실행 및 결과 조회
+            ResultSet resultSet = statement.executeQuery();
+
+            while (resultSet.next()) {
+	            // 예약 정보 가져오기
+	            String name = resultSet.getString("name");
+	            LocalDate checkInDate = resultSet.getObject("checkInDate", LocalDate.class);
+	            LocalDate checkOutDate = resultSet.getObject("checkOutDate", LocalDate.class);
+	            String paymentMethod = resultSet.getString("paymentMethod");
+	            int paymentAmount = resultSet.getInt("paymentAmount");
+	            String carNumber = resultSet.getString("carNumber");
+	            int breakfastCount = resultSet.getInt("breakfastCount");
+	            String memo = resultSet.getString("memo");
+
+                // 예약 정보 객체 생성
+	            ReservationInfo reservationInfo = new ReservationInfo(
+                		roomNumber,
+                		name, 
+                		checkInDate, 
+                		checkOutDate, 
+                   		paymentMethod,
+                		paymentAmount,
+                		carNumber, 
+                		breakfastCount, 
+                		memo);                
+                reservations.add(reservationInfo);
+            }
+        } 
+        catch (SQLException e) 
+        {
+            e.printStackTrace();
+        }
+
+        return reservations;
+    }
+    
+    public List<ReservationInfo> getReservationsByRoomNumberAndDate(String roomNumber, LocalDate searchStart, LocalDate searchEnd) 
+    {
+        List<ReservationInfo> reservations = new ArrayList<>();
+        try {
+            // SQL 쿼리 작성
+        	String sql = "SELECT * FROM reservations WHERE roomNumber = ? AND (checkInDate BETWEEN ? AND ? OR checkOutDate BETWEEN ? AND ?)";
+        	PreparedStatement statement = connection.prepareStatement(sql);
+            // 파라미터 설정
+        	statement.setString(1, roomNumber);
+        	statement.setDate(2, java.sql.Date.valueOf(searchStart));
+        	statement.setDate(3, java.sql.Date.valueOf(searchEnd));
+        	statement.setDate(4, java.sql.Date.valueOf(searchStart));
+        	statement.setDate(5, java.sql.Date.valueOf(searchEnd));
+
+            // SQL 실행 및 결과 조회
+            ResultSet resultSet = statement.executeQuery();
+
+            while (resultSet.next()) {
+	            // 예약 정보 가져오기
+	            String name = resultSet.getString("name");
+	            LocalDate checkInDate = resultSet.getObject("checkInDate", LocalDate.class);
+	            LocalDate checkOutDate = resultSet.getObject("checkOutDate", LocalDate.class);
+	            String paymentMethod = resultSet.getString("paymentMethod");
+	            int paymentAmount = resultSet.getInt("paymentAmount"); 
+	            String carNumber = resultSet.getString("carNumber");
+	            int breakfastCount = resultSet.getInt("breakfastCount");
+	            String memo = resultSet.getString("memo");
+
+                // 예약 정보 객체 생성
+	            ReservationInfo reservationInfo = new ReservationInfo(
+                		roomNumber,
+                		name, 
+                		checkInDate, 
+                		checkOutDate, 
+                   		paymentMethod,
+                		paymentAmount,
+                		carNumber, 
+                		breakfastCount, 
+                		memo);                
+                reservations.add(reservationInfo);
+            }
+        } 
+        catch (SQLException e) 
+        {
+            e.printStackTrace();
+        }
+
+        return reservations;
+    }
+    
+    public int ShowTotalAmount(LocalDate selectDate)
+    {
+    	int totalPaymentAmount = 0;
+        try {
+            // SQL 쿼리 작성
+        	String sql = "SELECT * FROM reservations WHERE ? BETWEEN checkInDate AND checkOutDate";
+        	PreparedStatement statement = connection.prepareStatement(sql);
+            // 파라미터 설정
+        	statement.setDate(1, java.sql.Date.valueOf(selectDate));
+
+            // SQL 실행 및 결과 조회
+            ResultSet resultSet = statement.executeQuery();
+
+            while (resultSet.next()) 
+            {
+	            // 예약 정보 가져오기
+	            LocalDate checkInDate = resultSet.getObject("checkInDate", LocalDate.class);
+	            LocalDate checkOutDate = resultSet.getObject("checkOutDate", LocalDate.class);
+	            int paymentAmount = resultSet.getInt("paymentAmount");
+	            
+	            long stayDate = ChronoUnit.DAYS.between(checkInDate, checkOutDate);
+	            
+	            // 현재 시간이 체크아웃 시간 이전이면
+	            if((LocalTime.now().isBefore(getCheckOutTime())))
+	            {
+	            	// 퇴실날짜가 기준날짜와 같은(퇴실예정인) 방의 금액을 더함 ( 더하는 금액은 받은 금액 / 머문 일수)
+	            	if(checkOutDate.isEqual(selectDate))
+	            	{
+	            		totalPaymentAmount += paymentAmount / stayDate;
+	            	}
+	            }
+	            // 현재 시간이 체크아웃 시간 이후면
+	            else if((LocalTime.now().isAfter(getCheckOutTime())))
+	            {
+	            	// 퇴실날짜가 기준날짜와 같지 않은(퇴실예정이 아닌) 방의 금액을 더함
+	            	if(!checkOutDate.isEqual(selectDate))
+	            	{
+	            		totalPaymentAmount += paymentAmount / stayDate;
+	            	}
+	            }
+            }
+        }
+        catch (SQLException e) 
+        {
+            e.printStackTrace();
+        }
+
+        return totalPaymentAmount;
+    }
+    
+    public int ShowTotalBreakfast(LocalDate selectDate)
+    {
+    	int totalBreakfastCount = 0;
+        try {
+            // SQL 쿼리 작성
+        	String sql = "SELECT * FROM reservations WHERE ? BETWEEN checkInDate AND checkOutDate";
+        	PreparedStatement statement = connection.prepareStatement(sql);
+            // 파라미터 설정
+        	statement.setDate(1, java.sql.Date.valueOf(selectDate));
+
+            // SQL 실행 및 결과 조회
+            ResultSet resultSet = statement.executeQuery();
+
+            while (resultSet.next()) 
+            {
+	            // 예약 정보 가져오기
+	            LocalDate checkInDate = resultSet.getObject("checkInDate", LocalDate.class);
+	            LocalDate checkOutDate = resultSet.getObject("checkOutDate", LocalDate.class);
+	            int breakfastCount = resultSet.getInt("breakfastCount");
+	            	            
+	            // 현재 시간이 체크아웃 시간 이전이면
+	            if((LocalTime.now().isBefore(getCheckOutTime())))
+	            {
+	            	// 퇴실날짜가 기준날짜와 같은(퇴실예정인) 방의 금액을 더함 ( 더하는 금액은 받은 금액 / 머문 일수)
+	            	if(checkOutDate.isEqual(selectDate))
+	            	{
+	            		totalBreakfastCount += breakfastCount;
+	            	}
+	            }
+	            // 현재 시간이 체크아웃 시간 이후면
+	            else if((LocalTime.now().isAfter(getCheckOutTime())))
+	            {
+	            	// 퇴실날짜가 기준날짜와 같지 않은(퇴실예정이 아닌) 방의 금액을 더함
+	            	if(!checkOutDate.isEqual(selectDate))
+	            	{
+	            		totalBreakfastCount += breakfastCount;
+	            	}
+	            }
+            }
+        }
+        catch (SQLException e) 
+        {
+            e.printStackTrace();
+        }
+
+        return totalBreakfastCount;
+    }
+    
+    public List<String> ShowTodayParkingInfo(LocalDate selectDate)
+    {
+        List<String> parkingInfoList = new ArrayList<>();
+
+        try 
+        {
+            // SQL 쿼리 작성
+            String sql = "SELECT * FROM reservations WHERE ? BETWEEN checkInDate AND checkOutDate";
+            PreparedStatement statement = connection.prepareStatement(sql);
+            // 파라미터 설정
+            statement.setDate(1, java.sql.Date.valueOf(selectDate));
+
+            // SQL 실행 및 결과 조회
+            ResultSet resultSet = statement.executeQuery();
+
+            while (resultSet.next()) 
+            {
+                // 예약 정보 가져오기
+                LocalDate checkInDate = resultSet.getObject("checkInDate", LocalDate.class);
+                LocalDate checkOutDate = resultSet.getObject("checkOutDate", LocalDate.class);
+                String roomNumber = resultSet.getString("roomNumber");
+                String carNumber = resultSet.getString("carNumber");
+
+                // 현재 시간이 체크아웃 시간 이전이면 & 현재날짜와 기준날짜가 같으면
+                if (LocalTime.now().isBefore(getCheckOutTime()) && LocalDate.now().isEqual(selectDate))
+                {
+                    // 퇴실날짜가 기준날짜와 같은(퇴실예정인) 방의 정보를 리스트에 추가
+                    if (checkOutDate.isEqual(selectDate))
+                    {
+                        String parkingInfo = "방 번호: " + roomNumber + ", 차 번호: " + carNumber;
+                        parkingInfoList.add(parkingInfo);
+                    }
+                }
+                // 현재 시간이 체크아웃 시간 이후면 || 현재날짜와 기준날짜가 다르면
+                else if (LocalTime.now().isAfter(getCheckOutTime()) || !LocalDate.now().isEqual(selectDate)) 
+                {
+                    // 퇴실날짜가 기준날짜와 같지 않은(퇴실예정이 아닌) 방의 정보를 리스트에 추가
+                    if (!checkOutDate.isEqual(selectDate))
+                    {
+                        String parkingInfo = "방 번호: " + roomNumber + ", 차 번호: " + carNumber;
+                        parkingInfoList.add(parkingInfo);
+                    }
+                }
+            }
+        } 
+        catch (SQLException e)
+        {
+            e.printStackTrace();
+        }
+
+        return parkingInfoList;
+    }
+    
+   public void UpdateReservationInfo(ReservationInfo reservationInfo, ReservationInfo newReservationInfo)
+   {
+	   try {
+	        // 예약 업데이트 쿼리 실행
+	        String updateQuery = "UPDATE reservations SET roomNumber = ?, "
+	                + "name = ?, "
+	                + "checkInDate = ?, "
+	                + "checkOutDate = ?, "
+	                + "paymentMethod = ?, "
+	                + "paymentAmount = ?, "
+	                + "carNumber = ?, "
+	                + "breakfastCount = ?, "
+	                + "memo = ?"
+	                + "WHERE roomNumber = ? AND "
+	                + "name = ? AND "
+	                + "checkInDate = ? AND "
+	                + "checkOutDate = ? AND "
+	                + "paymentMethod = ? AND "
+	                + "paymentAmount = ? AND "
+	                + "carNumber = ? AND "
+	                + "breakfastCount = ? AND "
+	                + "memo = ?";
+	        
+	        PreparedStatement updateStatement = connection.prepareStatement(updateQuery);
+	        updateStatement.setString(1, newReservationInfo.getRoomNumber());
+	        updateStatement.setString(2, newReservationInfo.getName());
+	        updateStatement.setDate(3, java.sql.Date.valueOf(newReservationInfo.getCheckIn()));
+	        updateStatement.setDate(4, java.sql.Date.valueOf(newReservationInfo.getCheckOut()));
+	        updateStatement.setString(5, newReservationInfo.getPaymentMethod());
+	        updateStatement.setInt(6, newReservationInfo.getPaymentAmount());
+	        updateStatement.setString(7, newReservationInfo.getCarNumber());
+	        updateStatement.setInt(8, newReservationInfo.getBreakfastCount());
+	        updateStatement.setString(9, newReservationInfo.getMemo());
+	        updateStatement.setString(10, reservationInfo.getRoomNumber());
+	        updateStatement.setString(11, reservationInfo.getName());
+	        updateStatement.setDate(12, java.sql.Date.valueOf(reservationInfo.getCheckIn()));
+	        updateStatement.setDate(13, java.sql.Date.valueOf(reservationInfo.getCheckOut()));
+	        updateStatement.setString(14, reservationInfo.getPaymentMethod());
+	        updateStatement.setInt(15, reservationInfo.getPaymentAmount());
+	        updateStatement.setString(16, reservationInfo.getCarNumber());
+	        updateStatement.setInt(17, newReservationInfo.getBreakfastCount());
+	        updateStatement.setString(18, reservationInfo.getMemo());
+
+	        updateStatement.executeUpdate();
+	    } catch (SQLException e) {
+	        e.printStackTrace();  // 예외 정보를 출력하거나 다른 예외 처리 방식을 선택할 수 있습니다.
+	    }
+   }
+
 }

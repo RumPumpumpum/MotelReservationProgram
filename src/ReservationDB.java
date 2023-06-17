@@ -381,22 +381,21 @@ public class ReservationDB
 	            
 	            long stayDate = ChronoUnit.DAYS.between(checkInDate, checkOutDate);
 	            
-	            // 현재 시간이 체크아웃 시간 이전이면
-	            if((LocalTime.now().isBefore(getCheckOutTime())))
+	            // 현재 시간이 체크아웃 시간 이전이면 & 기준날짜가 현재 날짜와 같다면
+	            if((LocalTime.now().isBefore(getCheckOutTime()) && LocalDate.now().isEqual(selectDate)))
 	            {
-	            	// 퇴실날짜가 기준날짜와 같은(퇴실예정인) 방의 금액을 더함 ( 더하는 금액은 받은 금액 / 머문 일수)
-	            	if(checkOutDate.isEqual(selectDate))
+	            	// 퇴실날짜가 기준날짜와 같은거나 큰 방의 금액을 더함 ( 더하는 금액은 받은 금액 / 머문 일수)
+	            	if(checkOutDate.isEqual(selectDate) || checkOutDate.isAfter(selectDate))
 	            	{
 	            		totalPaymentAmount += paymentAmount / stayDate;
 	            	}
 	            }
-	            // 현재 시간이 체크아웃 시간 이후면
-	            else if((LocalTime.now().isAfter(getCheckOutTime())))
+	            // 현재 시간이 체크아웃 시간 이후면 | 기준날짜가 현재날짜와 다르면
+	            else if((LocalTime.now().isAfter(getCheckOutTime()) || !LocalDate.now().isEqual(selectDate)))
 	            {
-	            	// 퇴실날짜가 기준날짜와 같지 않은(퇴실예정이 아닌) 방의 금액을 더함
 	            	if(!checkOutDate.isEqual(selectDate))
 	            	{
-	            		totalPaymentAmount += paymentAmount / stayDate;
+		            	totalPaymentAmount += paymentAmount / stayDate;
 	            	}
 	            }
             }
@@ -429,17 +428,17 @@ public class ReservationDB
 	            LocalDate checkOutDate = resultSet.getObject("checkOutDate", LocalDate.class);
 	            int breakfastCount = resultSet.getInt("breakfastCount");
 	            	            
-	            // 현재 시간이 체크아웃 시간 이전이면
-	            if((LocalTime.now().isBefore(getCheckOutTime())))
+	            // 현재 시간이 체크아웃 시간 이전이면 & 기준날짜가 현재 날짜와 같다면
+	            if((LocalTime.now().isBefore(getCheckOutTime()) && LocalDate.now().isEqual(selectDate)))
 	            {
-	            	// 퇴실날짜가 기준날짜와 같은(퇴실예정인) 방의 금액을 더함 ( 더하는 금액은 받은 금액 / 머문 일수)
-	            	if(checkOutDate.isEqual(selectDate))
+	            	// 퇴실날짜가 기준날짜와 같은거나 큰 방을 더함            	
+	            	if(checkOutDate.isEqual(selectDate) || checkOutDate.isAfter(selectDate))
 	            	{
 	            		totalBreakfastCount += breakfastCount;
 	            	}
 	            }
-	            // 현재 시간이 체크아웃 시간 이후면
-	            else if((LocalTime.now().isAfter(getCheckOutTime())))
+	            // 현재 시간이 체크아웃 시간 이후면 | 기준날짜가 현재 날짜와 다르다면
+	            else if((LocalTime.now().isAfter(getCheckOutTime()) || !LocalDate.now().isEqual(selectDate)))
 	            {
 	            	// 퇴실날짜가 기준날짜와 같지 않은(퇴실예정이 아닌) 방의 금액을 더함
 	            	if(!checkOutDate.isEqual(selectDate))
